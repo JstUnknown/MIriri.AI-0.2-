@@ -1,435 +1,549 @@
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-const size = 55;
-const scoreDisplay = document.getElementById("score");
-const tileCountX = Math.floor(canvas.width / size)
-const tileCountY = Math.floor(canvas.height / size)
+ const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
 
+    const size = 55;
+    const scoreDisplay = document.getElementById("score");
 
-let gameOver = false;
-let score = 0;
+    const tileCountX = Math.floor(canvas.width / size);
+    const tileCountY = Math.floor(canvas.height / size);
 
+    let gameOver = false;
+    let score = 0;
 
-let horse = {
-    x: 5 * size,
-    y: 5 * size,
-    dx: 0,
-    dy: 0
-};
+    let horse = {
+      x: 5 * size,
+      y: 5 * size,
+      dx: 0,
+      dy: 0
+    };
 
+    let apple = {
+      x: 2 * size,
+      y: 2 * size
+    };
 
-let apple = {
-    x: 2 * size,
-    y: 2 * size
-};
+    let enemy = {
+      x: 8 * size,
+      y: 3 * size
+    };
 
-let enemy = {
-    x: 8 * size,
-    y: 3 * size
-};
-enemy.x = Math.floor(Math.random()*tileCountX)*size
-enemy.y = Math.floor(Math.random()*tileCountY)*size
+    const restartButton = {
+      x: canvas.width / 2 - 100,
+      y: canvas.height / 2 + 130,
+      width: 200,
+      height: 60
+    };
 
-let buttonReset = {
-    x: canvas.width/2-100,
-    y: canvas.height/2+130,
-    width:200,
-    height:60
-};
-
-// SPRITES
-const sprites = [];
-for (let i = 0; i <= 4; i++) {
-    const img = new Image();
-    img.src = `assets/sprite_${i}.png`;
-    sprites.push(img);
-}
-
-
-let frame = 0;
-let frameDelay = 0;
-let direction = "right";
-
-
-const appleImg = new Image()
-appleImg.src = "assets/maza3.png"
-
-const enemyImg = new Image()
-enemyImg.src = "assets/trump.png"
-
-function drawHorse() {
-
-
-    ctx.save()
-
-
-    ctx.translate(horse.x + size / 2, horse.y + size / 2)
-
-
-    if (direction === "right") {
-    ctx.drawImage(sprites[frame], -size / 2, -size / 2, size, size)
+    // SPRITES
+    const sprites = [];
+    for (let i = 0; i <= 4; i++) {
+      const img = new Image();
+      img.src = `assets/sprite_${i}.png`;
+      sprites.push(img);
     }
 
+    let frame = 0;
+    let frameDelay = 0;
+    let direction = "right";
 
-    if (direction === "left") {
-    ctx.scale(-1, 1)
-    ctx.drawImage(sprites[frame], -size / 2, -size / 2, size, size)
+    const appleImg = new Image();
+    appleImg.src = "assets/maza3.png";
+
+    const enemyImg = new Image()
+    enemyImg.src = "assets/trump.png"
+
+    // =========================
+    // FUNÇÕES DE POSIÇÃO
+    // =========================
+    function getGridPos(obj) {
+      return {
+        x: obj.x / size,
+        y: obj.y / size
+      };
     }
 
-
-    if (direction === "up") {
-    ctx.rotate(-Math.PI / 2)
-    ctx.drawImage(sprites[frame], -size / 2, -size / 2, size, size)
+    function samePosition(a, b) {
+      return a.x === b.x && a.y === b.y;
     }
 
-
-    if (direction === "down") {
-    ctx.rotate(Math.PI / 2)
-    ctx.drawImage(sprites[frame], -size / 2, -size / 2, size, size)
+    function randomGridPosition() {
+      return {
+        x: Math.floor(Math.random() * tileCountX),
+        y: Math.floor(Math.random() * tileCountY)
+      };
     }
 
+    // =========================
+    // POSICIONAMENTO SEGURO
+    // =========================
+    function placeEnemySafely() {
+      let newPos;
 
-    ctx.restore()
+      do {
+        newPos = randomGridPosition();
+      } while (
+        (newPos.x === horse.x / size && newPos.y === horse.y / size) ||
+        (newPos.x === apple.x / size && newPos.y === apple.y / size)
+      );
 
+      enemy.x = newPos.x * size;
+      enemy.y = newPos.y * size;
+    }
 
-    if (horse.dx !== 0 || horse.dy !== 0) {
-    frameDelay++
+    function placeAppleSafely() {
+      let horseGrid = getGridPos(horse);
+      let enemyGrid = getGridPos(enemy);
 
+      let newPos;
+      let tries = 0;
 
-    if (frameDelay > 6) {
-        frame++
-        frameDelay = 0
+      do {
+        newPos = randomGridPosition();
+        tries++;
+      } while (
+        (
+          (newPos.x === horseGrid.x && newPos.y === horseGrid.y) ||
+          (newPos.x === enemyGrid.x && newPos.y === enemyGrid.y)
+        ) && tries < 200
+      );
 
+      apple.x = newPos.x * size;
+      apple.y = newPos.y * size;
+    }
 
-        if (frame >= sprites.length) {
-        frame = 0
+    // =========================
+    // PATHFINDING (BFS)
+    // =========================
+    function findPathAvoiding(start, end, blocked) {
+      let open = [start];
+      let cameFrom = {};
+      let visited = new Set();
+
+      let key = (p) => p.x + "," + p.y;
+
+      visited.add(key(start));
+
+      while (open.length > 0) {
+        let current = open.shift();
+
+        if (current.x === end.x && current.y === end.y) {
+          let path = [];
+          let temp = current;
+
+          while (temp) {
+            path.unshift(temp);
+            temp = cameFrom[key(temp)];
+          }
+
+          return path;
         }
-    }
-    }
 
-
-}
-
-function drawEnemy() {
-    ctx.drawImage(enemyImg, enemy.x, enemy.y, size, size)
-}
-
-
-function drawApple() {
-    ctx.drawImage(appleImg, apple.x, apple.y, size, size)
-}
-
-
-function moveMiriri() {
-
-
-    horse.x += horse.dx
-    horse.y += horse.dy
-
-
-    if (
-    horse.x < 0 ||
-    horse.y < 0 ||
-    horse.x >= tileCountX * size ||
-    horse.y >= tileCountY * size
-    ) {
-    gameOver = true
-    }
-
-
-}
-
-function moveEnemy() {
-    let start=getGridPos(enemy)
-    let end=getGridPos(horse)
-    let path= findPath(start,end)
-    if(path.length>1){
-        let next=path[1]
-        enemy.x=next.x*size
-        enemy.y=next.y*size
-    }
-}
-
-function checkApple() {
-
-
-    if (horse.x === apple.x && horse.y === apple.y) {
-
-
-    score++
-
-
-    apple.x = Math.floor(Math.random() * tileCountX) * size
-    apple.y = Math.floor(Math.random() * tileCountY) * size
-
-
-    }
-
-
-}
-
-
-function drawScore() {
-    scoreDisplay.textContent = "Score: " + score
-}
-
-function drawRestartButton(){
-    ctx.fillStyle="#88b189"
-    ctx.fillRect(
-       buttonReset.x,
-       buttonReset.y,
-       buttonReset.width,
-       buttonReset.height
-    ) 
-    ctx.strokeStyle= "#58976a"
-    ctx.lineWidth=3
-    ctx.strokeRect(
-       buttonReset.x,
-       buttonReset.y,
-       buttonReset.width,
-       buttonReset.height
-    ) 
-     ctx.fillStyle="#f5f5f5"
-    ctx.fillText(
-        "reinciar",
-       buttonReset.x+35,
-       buttonReset.y+38,
-    ) 
-
-}
-    function insideRestartButton(x,y){
-    return (
-        x >= buttonReset.x &&
-        x <= buttonReset.x + buttonReset.width &&
-        y >= buttonReset.y &&
-        y <= buttonReset.y + buttonReset.height
-)
-}
-function drawGameOver() {
-
-
-    ctx.fillStyle = "rgba(0,0,0,0.6)"
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-
-    ctx.fillStyle = "white"
-    ctx.font = "40px Arial"
-    ctx.fillText("O miriri desmaiou", canvas.width / 2 - 150, canvas.height / 2)
-
-
-    ctx.fillText("Pressione R para reiniciar", canvas.width / 2 - 160, canvas.height / 2 + 70)
-drawRestartButton()
-
-
-}
-
-
-function resetGame() {
-
-
-    horse.x = 5 * size
-    horse.y = 5 * size
-    horse.dx = 0
-    horse.dy = 0
-    score = 0
-    gameOver = false
-
-
-}
-
-
-function drawGrid() {
-
-
-    ctx.strokeStyle = "#eeeeee"
-
-
-    for (let x = 0; x < canvas.width; x += size) {
-    ctx.beginPath()
-    ctx.moveTo(x, 0)
-    ctx.lineTo(x, canvas.height)
-    ctx.stroke()
-    }
-
-
-    for (let y = 0; y < canvas.height; y += size) {
-    ctx.beginPath()
-    ctx.moveTo(0, y)
-    ctx.lineTo(canvas.width, y)
-    ctx.stroke()
-    }
-
-
-}
-
-
-function moveUp() {
-    horse.dx = 0
-    horse.dy = -size
-    direction = "up"
-    moveMiriri()
-    checkApple()
-}
-
-
-function moveDown() {
-    horse.dx = 0
-    horse.dy = size
-    direction = "down"
-    moveMiriri()
-    checkApple()
-}
-
-
-function moveLeft() {
-    horse.dx = -size
-    horse.dy = 0
-    direction = "left"
-    moveMiriri()
-    checkApple()
-}
-
-
-function moveRight() {
-    horse.dx = size
-    horse.dy = 0
-    direction = "right"
-    moveMiriri()
-    checkApple()
-}
-
-
-function gameLoop() {
-
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-
-    if (gameOver) {
-    drawGameOver()
-    } else {
-    drawHorse()
-    drawApple()
-    drawScore()
-    drawGrid()
-    drawEnemy()
-    }
-
-
-    requestAnimationFrame(gameLoop)
-
-
-}
-
-
-// CONTROLE TECLADO
-document.addEventListener("keydown", e => {
-    if(e.repeat)return
-
-    if (gameOver && (e.key === "r" || e.key === "R")) {
-    resetGame()
-    }
-
-
-    if (!gameOver) {
-
-
-    if (e.key === "w" || e.key === "W") {
-        moveUp()
-    }
-
-
-    if (e.key === "s" || e.key === "S") {
-        moveDown()
-    }
-
-
-    if (e.key === "a" || e.key === "A") {
-        moveLeft()
-    }
-
-
-    if (e.key === "d" || e.key === "D") {
-        moveRight()
-    }
-
-
-    }
-
-
-})
-
-
-// CONTROLE TOUCH
-canvas.addEventListener("touchstart", function (e) {
-
-
-    e.preventDefault()
-
-
-    const touch = e.touches[0]
-
-
-    const rect = canvas.getBoundingClientRect()
-
-
-    const touchX = touch.clientX - rect.left
-    const touchY = touch.clientY - rect.top
-
-    if(gameOver){
-        if(insideRestartButton(touchX,touchY)){
-            resetGame()
+        let neighbors = [
+          { x: current.x + 1, y: current.y },
+          { x: current.x - 1, y: current.y },
+          { x: current.x, y: current.y + 1 },
+          { x: current.x, y: current.y - 1 }
+        ];
+
+        for (let n of neighbors) {
+          if (
+            n.x < 0 ||
+            n.y < 0 ||
+            n.x >= tileCountX ||
+            n.y >= tileCountY
+          ) {
+            continue;
+          }
+
+          if (blocked && n.x === blocked.x && n.y === blocked.y) {
+            continue;
+          }
+
+          if (visited.has(key(n))) continue;
+
+          visited.add(key(n));
+          cameFrom[key(n)] = current;
+          open.push(n);
         }
-        return
-    }
-    
+      }
 
-    const centerX = horse.x + size / 2
-    const centerY = horse.y + size / 2
-
-
-    const dx = touchX - centerX
-    const dy = touchY - centerY
-
-
-    if (Math.abs(dx) > Math.abs(dy)) {
-
-
-    if (dx > 0) {
-        moveRight()
-    } else {
-        moveLeft()
+      return [];
     }
 
+    // =========================
+    // IA DO INIMIGO (SEMPRE DEIXA CAMINHO PRA MAÇÃ)
+    // =========================
+    function getSafeEnemyMove() {
+      let enemyGrid = getGridPos(enemy);
+      let horseGrid = getGridPos(horse);
+      let appleGrid = getGridPos(apple);
 
-    } else {
+      let moves = [
+        { x: enemyGrid.x + 1, y: enemyGrid.y },
+        { x: enemyGrid.x - 1, y: enemyGrid.y },
+        { x: enemyGrid.x, y: enemyGrid.y + 1 },
+        { x: enemyGrid.x, y: enemyGrid.y - 1 }
+      ];
 
+      let validMoves = moves.filter(m =>
+        m.x >= 0 &&
+        m.y >= 0 &&
+        m.x < tileCountX &&
+        m.y < tileCountY
+      );
+      for(let move of validMoves){
+        if(move.x===horseGrid.x && move.y===horseGrid.y){
+            return move
+        }
+      }
+    //apenas movimento onde o cavalo consegue chegar na maçã
 
-    if (dy > 0) {
-        moveDown()
-    } else {
-        moveUp()
+      let safeMoves=validMoves.filter(move=>{
+        let pathHorseToApple=findPathAvoiding(horseGrid,appleGrid,move);
+        return pathHorseToApple.length>0;
+      })
+      if(safeMoves.length===0){return null}
+     
+    //escolhe o movimento q mais se aproxima do cavalo
+      let bestMove=safeMoves[0]
+      let bestDistance=
+        Math.abs(bestMove.x-horseGrid.x)+
+        Math.abs(bestMove.y-horseGrid.y)
+      for(let move of safeMoves){
+        let distance= 
+            Math.abs(move.x-horseGrid.x)+
+            Math.abs(move.y-horseGrid.y)
+        if(distance<bestDistance){
+            bestDistance=distance;
+            bestMove=move
+        }
+      }
+      return bestMove
     }
 
+    function moveEnemy() {
+      let nextMove = getSafeEnemyMove();
 
+      if (!nextMove) return;
+
+      enemy.x = nextMove.x * size;
+      enemy.y = nextMove.y * size;
     }
 
+    // =========================
+    // DESENHO
+    // =========================
+    function drawHorse() {
+      ctx.save();
 
-})
+      ctx.translate(horse.x + size / 2, horse.y + size / 2);
 
+      if (direction === "right") {
+        ctx.drawImage(sprites[frame], -size / 2, -size / 2, size, size);
+      }
 
+      if (direction === "left") {
+        ctx.scale(-1, 1);
+        ctx.drawImage(sprites[frame], -size / 2, -size / 2, size, size);
+      }
 
+      if (direction === "up") {
+        ctx.rotate(-Math.PI / 2);
+        ctx.drawImage(sprites[frame], -size / 2, -size / 2, size, size);
+      }
 
-setInterval(() => {
+      if (direction === "down") {
+        ctx.rotate(Math.PI / 2);
+        ctx.drawImage(sprites[frame], -size / 2, -size / 2, size, size);
+      }
 
+      ctx.restore();
 
-    if (!gameOver) {
-    moveMiriri()
-    checkApple()
+      if (horse.dx !== 0 || horse.dy !== 0) {
+        frameDelay++;
+
+        if (frameDelay > 6) {
+          frame++;
+          frameDelay = 0;
+
+          if (frame >= sprites.length) {
+            frame = 0;
+          }
+        }
+      }
     }
 
+    function drawApple() {
+      ctx.drawImage(appleImg, apple.x, apple.y, size, size);
+    }
 
-}, 200)
+    function drawEnemy() {
+      ctx.drawImage(enemyImg, enemy.x, enemy.y, size, size)
+    }
 
+    function drawScore() {
+      scoreDisplay.textContent = "Score: " + score;
+    }
 
-gameLoop()
+    function drawGrid() {
+      ctx.strokeStyle = "#eeeeee";
+
+      for (let x = 0; x < canvas.width; x += size) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+
+      for (let y = 0; y < canvas.height; y += size) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+    }
+
+    function drawGameOver() {
+      ctx.fillStyle = "rgba(0,0,0,0.6)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "white";
+      ctx.font = "40px Arial";
+      ctx.fillText("O miriri desmaiou", canvas.width / 2 - 150, canvas.height / 2);
+
+      ctx.font = "26px Arial";
+      ctx.fillText("Toque no botão para reiniciar", canvas.width / 2 - 165, canvas.height / 2 + 70);
+
+      drawRestartButton();
+    }
+
+    function drawRestartButton() {
+      ctx.fillStyle = "#4caf50";
+      ctx.fillRect(
+        restartButton.x,
+        restartButton.y,
+        restartButton.width,
+        restartButton.height
+      );
+
+      ctx.strokeStyle = "white";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(
+        restartButton.x,
+        restartButton.y,
+        restartButton.width,
+        restartButton.height
+      );
+
+      ctx.fillStyle = "white";
+      ctx.font = "28px Arial";
+      ctx.fillText(
+        "Reiniciar",
+        restartButton.x + 35,
+        restartButton.y + 38
+      );
+    }
+
+    // =========================
+    // JOGO
+    // =========================
+    function moveMiriri() {
+      horse.x += horse.dx;
+      horse.y += horse.dy;
+
+      if (
+        horse.x < 0 ||
+        horse.y < 0 ||
+        horse.x >= tileCountX * size ||
+        horse.y >= tileCountY * size
+      ) {
+        gameOver = true;
+      }
+    }
+
+    function checkApple() {
+      if (horse.x === apple.x && horse.y === apple.y) {
+        score++;
+        placeAppleSafely();
+      }
+    }
+
+    function isInsideRestartButton(x, y) {
+      return (
+        x >= restartButton.x &&
+        x <= restartButton.x + restartButton.width &&
+        y >= restartButton.y &&
+        y <= restartButton.y + restartButton.height
+      );
+    }
+
+    function resetGame() {
+      horse.x = 5 * size;
+      horse.y = 5 * size;
+      horse.dx = 0;
+      horse.dy = 0;
+
+      apple.x = 2 * size;
+      apple.y = 2 * size;
+
+      placeEnemySafely();
+
+      score = 0;
+      gameOver = false;
+      direction = "right";
+      frame = 0;
+      frameDelay = 0;
+    }
+
+    function drawAll() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (gameOver) {
+        drawGameOver();
+      } else {
+        drawGrid();
+        drawApple();
+        drawHorse();
+        drawEnemy();
+        drawScore();
+      }
+    }
+
+    function gameLoop() {
+      drawAll();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // =========================
+    // CONTROLES
+    // =========================
+    function moveUp() {
+      horse.dx = 0;
+      horse.dy = -size;
+      direction = "up";
+    }
+
+    function moveDown() {
+      horse.dx = 0;
+      horse.dy = size;
+      direction = "down";
+    }
+
+    function moveLeft() {
+      horse.dx = -size;
+      horse.dy = 0;
+      direction = "left";
+    }
+
+    function moveRight() {
+      horse.dx = size;
+      horse.dy = 0;
+      direction = "right";
+    }
+
+    // TECLADO
+    document.addEventListener("keydown", e => {
+      if (e.repeat) return;
+
+      if (gameOver && (e.key === "r" || e.key === "R")) {
+        resetGame();
+        return;
+      }
+
+      if (!gameOver) {
+        if (e.key === "w" || e.key === "W") {
+          moveUp();
+        }
+
+        if (e.key === "s" || e.key === "S") {
+          moveDown();
+        }
+
+        if (e.key === "a" || e.key === "A") {
+          moveLeft();
+        }
+
+        if (e.key === "d" || e.key === "D") {
+          moveRight();
+        }
+      }
+    });
+
+    // TOUCH
+    canvas.addEventListener("touchstart", function (e) {
+      e.preventDefault();
+
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+
+      const touchX = (touch.clientX - rect.left) * scaleX;
+      const touchY = (touch.clientY - rect.top) * scaleY;
+
+      if (gameOver) {
+        if (isInsideRestartButton(touchX, touchY)) {
+          resetGame();
+        }
+        return;
+      }
+
+      const centerX = horse.x + size / 2;
+      const centerY = horse.y + size / 2;
+
+      const dx = touchX - centerX;
+      const dy = touchY - centerY;
+
+      if (Math.abs(dx) > Math.abs(dy)) {
+        if (dx > 0) {
+          moveRight();
+        } else {
+          moveLeft();
+        }
+      } else {
+        if (dy > 0) {
+          moveDown();
+        } else {
+          moveUp();
+        }
+      }
+    });
+
+    // CLICK PARA REINICIAR
+    canvas.addEventListener("click", function (e) {
+      if (!gameOver) return;
+
+      const rect = canvas.getBoundingClientRect();
+
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+
+      const clickX = (e.clientX - rect.left) * scaleX;
+      const clickY = (e.clientY - rect.top) * scaleY;
+
+      if (isInsideRestartButton(clickX, clickY)) {
+        resetGame();
+      }
+    });
+
+    // =========================
+    // LOOP LÓGICO DO JOGO
+    // =========================
+    setInterval(() => {
+      if (!gameOver) {
+        moveMiriri();
+        checkApple();
+        moveEnemy();
+
+        // colisão com inimigo
+        if (enemy.x === horse.x && enemy.y === horse.y) {
+          gameOver = true;
+        }
+      }
+    }, 200);
+
+    // posiciona inimigo inicial de forma segura
+    placeEnemySafely();
+
+    gameLoop();
